@@ -20,12 +20,39 @@
       // iPad 13+ 는 데스크탑 UA 흉내내므로 Mac + touch 도 함께 체크.
       var isIOS = /iPhone|iPad|iPod/.test(ua) ||
                   (/Mac/.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1);
-      if (isAndroid) {
-        location.replace(ANDROID_URL);
-      } else if (isIOS) {
-        location.replace(IOS_URL);
+
+      // ── deferred referral (위글 앱 v1.3.3 옵션1) ──
+      // ?ref=<친구코드> 가 있으면 클립보드에 `WGL-REF:<코드>` 마커를 심는다.
+      // 수신자가 설치 후 첫 실행하면 앱이 이 마커를 읽어 자동으로 친구 추가 화면으로 간다.
+      // 마커 형식은 wiggle-app/lib/share.ts 의 buildReferralMarker 와 반드시 일치해야 함:
+      //   prefix 'WGL-REF:' + 대문자 영숫자 4~6자.
+      function getRefCode() {
+        try {
+          var m = (location.search || '').match(/[?&]ref=([A-Za-z0-9]{4,6})(?:&|$)/);
+          return m ? m[1].toUpperCase() : null;
+        } catch (e) { return null; }
       }
-      // 데스크탑/그 외 → 아래 본문 표시 (수동 선택 가능).
+      function redirect() {
+        if (isAndroid) location.replace(ANDROID_URL);
+        else if (isIOS) location.replace(IOS_URL);
+        // 데스크탑/그 외 → 본문 표시(수동 선택). redirect 안 함.
+      }
+
+      var ref = getRefCode();
+      if (ref && navigator.clipboard && navigator.clipboard.writeText) {
+        var marker = 'WGL-REF:' + ref;
+        var done = false;
+        var finish = function () { if (!done) { done = true; redirect(); } };
+        // 클립보드 쓰기 시도 후 redirect. 모바일에서 자동 redirect가 클립보드 쓰기를
+        // 취소하지 않도록, 성공/실패/타임아웃 어느 쪽이든 finish()로 1회만 redirect.
+        try {
+          navigator.clipboard.writeText(marker).then(finish, finish);
+        } catch (e) { finish(); }
+        // 클립보드 promise가 매달리는 환경 대비 안전망(250ms).
+        setTimeout(finish, 250);
+      } else {
+        redirect();
+      }
     })();
   </script>
   <style>
@@ -56,7 +83,7 @@
       <a href="https://apps.apple.com/app/id6761043013" class="store-btn store-ios">📱 App Store에서 받기 (iOS)</a>
       <a href="https://play.google.com/store/apps/details?id=com.kangjinwon.wiggle" class="store-btn store-android">🤖 Play Store에서 받기 (Android)</a>
     </div>
-    <p class="note">모바일에서 열면 자동으로<br>해당 스토어로 이동합니다.</p>
+    <p class="note">모바일에서 열면 자동으로<br>해당 스토어로 이동합니다.<br>설치 후 앱을 열면 초대한 친구가 자동으로 추가돼요.</p>
   </div>
 
   <div class="footer">
